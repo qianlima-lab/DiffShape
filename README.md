@@ -1,8 +1,8 @@
-# Diffusion Language-Shapelets for Semi-supervised Time-series Classification
+# Diffusion Language-Shapelets for Semi-supervised Time-Series Classification
 
 This is the training code for our paper "Diffusion Language-Shapelets for Semi-supervised Time-Series Classification" (AAAI-24).
 
-## Abstract
+## Overview
 
 Semi-supervised time-series classification could effectively alleviate the issue of lacking labeled data. However,
 existing approaches usually ignore model interpretability, making it difficult for humans to understand the principles
