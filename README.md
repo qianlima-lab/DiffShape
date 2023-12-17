@@ -35,13 +35,13 @@ we employed a total of 106 datasets from the initial pool of 128 UCR datasets fo
 To train a DiffShape model on a dataset for semi-supervised time series classification, run
 
 ```bash
-python diffshape_semi/main_diffshape.py --dataset [name of the dataset you want to train]  ...
+python diffshape_ssc/main_diffshape.py --dataset [name of the dataset you want to train]  ...
 ```
 
 Also, to train a DiffShape model on a dataset with few labeled samples per class for time series classification, run
 
 ```bash
-python diffshape_semi/main_diffshape_few.py --dataset [name of the dataset you want to train]  ...
+python diffshape_ssc/main_diffshape_few.py --dataset [name of the dataset you want to train]  ...
 ```
 
 
