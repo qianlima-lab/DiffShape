@@ -2,7 +2,7 @@
 
 This is the training code for our paper "Diffusion Language-Shapelets for Semi-supervised Time-Series Classification" (AAAI-24).
 
-## Overview
+## Abstract
 
 Semi-supervised time-series classification could effectively alleviate the issue of lacking labeled data. However,
 existing approaches usually ignore model interpretability, making it difficult for humans to understand the principles
@@ -17,4 +17,31 @@ Furthermore, we introduce a contrastive language-shapelets learning strategy tha
 learned shapelets by incorporating the natural language descriptions of the time series.
 Experiments have been conducted on the UCR time series archive, and the results reveal that the proposed DiffShape
 method achieves state-of-the-art performance and exhibits superior interpretability over baselines.
+
+## Datasets
+
+### UCR archive time series datasets
+
+* [UCR time series archive](https://www.cs.ucr.edu/~eamonn/time_series_data_2018/UCRArchive_2018.zip)
+
+In accordance with the recommendation provided by the creators of the UCR archive and TS-TFC, we implemented a
+restriction to maintain an average
+of at least 30 samples per class within each dataset. This measure was taken to enhance the stability of the
+classification test results. As a result,
+we employed a total of 106 datasets from the initial pool of 128 UCR datasets for our experimental analysis.
+
+## Usage (Our Model)
+
+To train a DiffShape model on a dataset for semi-supervised time series classification, run
+
+```bash
+python diffshape_semi/main_diffshape.py --dataset [name of the dataset you want to train]  ...
+```
+
+Also, to train a DiffShape model on a dataset with few labeled samples per class for time series classification, run
+
+```bash
+python diffshape_semi/main_diffshape_few.py --dataset [name of the dataset you want to train]  ...
+```
+
 
