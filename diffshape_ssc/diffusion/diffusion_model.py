@@ -8,9 +8,27 @@ import torch.nn.functional as F
 from einops import rearrange, repeat
 from torch import Tensor
 from tqdm import tqdm
-from blocks import LanguageShapeletGuidancePlugin, Module, T5Embedder
-from diff_utils import AttentionItem, CrossAttentionItem, InjectChannelsItem, ModulationItem, ResnetItem, SkipCat, \
-    SkipModulate, XBlock, XUNet, exists, groupby, default
+from blocks import LanguageShapeletGuidancePlugin
+
+from diff_utils import exists, groupby, default
+from a_unet.apex import (
+    AttentionItem,
+    CrossAttentionItem,
+    InjectChannelsItem,
+    ModulationItem,
+    ResnetItem,
+    SkipCat,
+    SkipModulate,
+    XBlock,
+    XUNet,
+)
+
+from a_unet import (
+    TimeConditioningPlugin,
+    TextConditioningPlugin,
+    Module,
+    T5Embedder,
+)
 
 """ Distributions """
 
@@ -253,6 +271,13 @@ def UNetV0(
         msg = "use_embedding_cfg requires embedding_max_length"
         assert exists(embedding_max_length), msg
         UNetV0 = LanguageShapeletGuidancePlugin(UNetV0, embedding_max_length)
+
+    if use_text_conditioning:
+        UNetV0 = TextConditioningPlugin11(UNetV0)
+
+    if use_time_conditioning:
+        assert use_modulation, "use_time_conditioning requires use_modulation=True"
+        UNetV0 = TimeConditioningPlugin(UNetV0)
 
     # Build
     return UNetV0(
