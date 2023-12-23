@@ -418,7 +418,7 @@ class Block(nn.Module):
 
 
 # Block type, to be provided in UNet
-XBlock = T(Block, override=False)
+# XBlock = T(Block, override=False)
 
 """ UNet """
 
