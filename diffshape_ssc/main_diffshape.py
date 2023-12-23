@@ -262,15 +262,15 @@ if __name__ == '__main__':
     set_seed(args)
 
     if args.labeled_ratio == 0.1:
-        args.total_dim = ucr_hyp_dict_10[args.dataset]["total_dim"]
+        args.total_dim = ucr_hyp_dict_10[args.dataset]["target_dim"]
         args.len_shapelet_ratio = ucr_hyp_dict_10[args.dataset]["len_shapelet_ratio"]
 
     if args.labeled_ratio == 0.2:
-        args.total_dim = ucr_hyp_dict_20[args.dataset]["total_dim"]
+        args.total_dim = ucr_hyp_dict_20[args.dataset]["target_dim"]
         args.len_shapelet_ratio = ucr_hyp_dict_20[args.dataset]["len_shapelet_ratio"]
 
     if args.labeled_ratio == 0.4:
-        args.total_dim = ucr_hyp_dict_40[args.dataset]["total_dim"]
+        args.total_dim = ucr_hyp_dict_40[args.dataset]["target_dim"]
         args.len_shapelet_ratio = ucr_hyp_dict_40[args.dataset]["len_shapelet_ratio"]
 
     sum_dataset, sum_target, num_classes = build_dataset(args)
