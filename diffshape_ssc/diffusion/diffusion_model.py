@@ -1,3 +1,10 @@
+import os
+import sys
+
+curPath = os.path.abspath(os.path.dirname(__file__))
+rootPath = os.path.split(curPath)[0]
+sys.path.append(rootPath)
+
 import torch.nn.functional as F
 from typing import Callable, Sequence, Type
 from math import pi
@@ -8,9 +15,7 @@ import torch.nn.functional as F
 from einops import rearrange, repeat
 from torch import Tensor
 from tqdm import tqdm
-from blocks import LanguageShapeletGuidancePlugin
-
-from diff_utils import exists, groupby, default
+from diffusion.diff_utils import exists, groupby, default
 from a_unet.apex import (
     AttentionItem,
     CrossAttentionItem,
@@ -25,7 +30,7 @@ from a_unet.apex import (
 
 from a_unet import (
     TimeConditioningPlugin,
-    TextConditioningPlugin,
+    ClassifierFreeGuidancePlugin,
     Module,
     T5Embedder,
 )
@@ -269,8 +274,10 @@ def UNetV0(
 
     if use_embedding_cfg:
         msg = "use_embedding_cfg requires embedding_max_length"
+        # assert exists(embedding_max_length), msg
+        # UNetV0 = LanguageShapeletGuidancePlugin(UNetV0, embedding_max_length)
         assert exists(embedding_max_length), msg
-        UNetV0 = LanguageShapeletGuidancePlugin(UNetV0, embedding_max_length)
+        UNetV0 = ClassifierFreeGuidancePlugin(UNetV0, embedding_max_length)
 
     if use_text_conditioning:
         UNetV0 = TextConditioningPlugin11(UNetV0)

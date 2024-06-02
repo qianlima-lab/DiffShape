@@ -13,6 +13,8 @@ from semi_utils import set_seed, build_loss, evaluate_model_acc, lan_shapelet_co
     get_pesudo_via_high_confidence_softlabels
 from semi_backbone import ProjectionHead
 from parameter_shapelets import *
+from torch.cuda.amp import GradScaler, autocast
+
 
 ucr_datasets_dict = {
     'AllGestureWiimoteX': {'0': 'poteg - pick-up', '1': 'shake - shake', '2': 'desno - one move to the right',
@@ -53,7 +55,8 @@ ucr_datasets_dict = {
                             '3': 'Eunotia tenella'},
     'DistalPhalanxOutlineAgeGroup': {'0': '0-6 years old', '1': '7-12 years old', '2': '13-19 years old'},
     'DistalPhalanxOutlineCorrect': {'0': 'Correct', '1': 'Incorrect'},
-    'DistalPhalanxTW': {'0': '0-6 years old', '1': '7-12 years old', '2': '13-19 years old'},
+    'DistalPhalanxTW': {'0': 'belong to 0-6 years old', '1': 'not belong to 0-6 years old',
+                        '2': 'belong to 7-12 years old', '3': 'not belong to 7-12 years old', '4': 'belong to 13-19 years old', '5': 'not belong to 13-19 years old'},
     'DodgerLoopGame': {'0': 'Sunday', '1': 'Monday', '2': 'Tuesday', '3': 'Wednesday', '4': 'Thursday', '5': 'Friday',
                        '6': 'Saturday'},
     'DodgerLoopWeekend': {'0': 'Sunday', '1': 'Monday', '2': 'Tuesday', '3': 'Wednesday', '4': 'Thursday',
@@ -124,7 +127,7 @@ ucr_datasets_dict = {
     'MiddlePhalanxOutlineCorrect': {'0': 'Correct', '1': 'Incorrect'},
     'MiddlePhalanxTW': {'0': '0-6 years old is correct', '1': '0-6 years old is incorrect',
                         '2': '7-12 years old is correct', '3': '7-12 years old is incorrect',
-                        '3': '13-19 years old is correct', '5': '13-19 years old is incorrect'},
+                        '4': '13-19 years old is correct', '5': '13-19 years old is incorrect'},
     'MixedShapesRegularTrain': {'0': 'Arrowhead', '1': 'Butterfly', '2': 'Fish', '3': 'Seashell', '4': 'Shield'},
     'MixedShapesSmallTrain': {'0': 'Arrowhead', '1': 'Butterfly', '2': 'Fish', '3': 'Seashell', '4': 'Shield'},
     'MoteStrain': {'0': 'q8calibHumid', '1': 'q8calibHumTemp'},
@@ -232,7 +235,8 @@ if __name__ == '__main__':
 
     # Dataset setup
     parser.add_argument('--dataset', type=str, default='Trace', help='')
-    parser.add_argument('--dataroot', type=str, default='.../UCRArchive_2018', help='path of UCR folder')
+    # parser.add_argument('--dataroot', type=str, default='.../UCRArchive_2018', help='path of UCR folder')
+    parser.add_argument('--dataroot', type=str, default='/dev_data/lz/UCRArchive_2018', help='path of UCR folder')
     parser.add_argument('--num_classes', type=int, default=2, help='number of class')
     parser.add_argument('--input_size', type=int, default=2, help='input_size')
 
@@ -264,14 +268,17 @@ if __name__ == '__main__':
     if args.labeled_ratio == 0.1:
         args.total_dim = ucr_hyp_dict_10[args.dataset]["target_dim"]
         args.len_shapelet_ratio = ucr_hyp_dict_10[args.dataset]["len_shapelet_ratio"]
+        args.prompt_toolkit_series_i = ucr_hyp_prompt_10[args.dataset]["prompt_toolkit_series_i"] - 1
 
     if args.labeled_ratio == 0.2:
         args.total_dim = ucr_hyp_dict_20[args.dataset]["target_dim"]
         args.len_shapelet_ratio = ucr_hyp_dict_20[args.dataset]["len_shapelet_ratio"]
+        args.prompt_toolkit_series_i = ucr_hyp_prompt_20[args.dataset]["prompt_toolkit_series_i"] - 1
 
     if args.labeled_ratio == 0.4:
         args.total_dim = ucr_hyp_dict_40[args.dataset]["target_dim"]
         args.len_shapelet_ratio = ucr_hyp_dict_40[args.dataset]["len_shapelet_ratio"]
+        args.prompt_toolkit_series_i = ucr_hyp_prompt_40[args.dataset]["prompt_toolkit_series_i"] - 1
 
     sum_dataset, sum_target, num_classes = build_dataset(args)
     args.num_classes = num_classes
@@ -355,6 +362,8 @@ if __name__ == '__main__':
         mlp_text_head.load_state_dict(mlp_text_head_init_state)
 
         print('{} fold start training and evaluate'.format(i))
+
+        scaler = GradScaler()
 
         train_target = train_targets[i]
         val_dataset = val_datasets[i]
@@ -453,58 +462,61 @@ if __name__ == '__main__':
                         continue
 
                     optimizer.zero_grad()
-                    predicted = conv_model(torch.unsqueeze(x, 2))
 
-                    raw_similar_shapelets_list = None
-                    transformation_similart_loss = None
-                    for _i in range(predicted.shape[0]):
-                        _, _raw_similar_shapelets = get_each_sample_distance_shapelet(
-                            generator_shapelet=predicted[_i],
-                            raw_shapelet=x[_i],
-                            topk=1)
-                        _raw_similar_shapelets = torch.unsqueeze(_raw_similar_shapelets, 0)
-                        if raw_similar_shapelets_list is None:
-                            raw_similar_shapelets_list = _raw_similar_shapelets
-                        else:
-                            raw_similar_shapelets_list = torch.cat((raw_similar_shapelets_list, _raw_similar_shapelets),
-                                                                   0)
+                    with autocast():
+                        predicted = conv_model(torch.unsqueeze(x, 2))
 
-                        _i_sim_loss = get_similarity_shapelet(generator_shapelet=predicted[_i])
-                        if transformation_similart_loss == None:
-                            transformation_similart_loss = 0.01 * _i_sim_loss
-                        else:
-                            transformation_similart_loss = transformation_similart_loss + 0.01 * _i_sim_loss
+                        raw_similar_shapelets_list = None
+                        transformation_similart_loss = None
+                        for _i in range(predicted.shape[0]):
+                            _, _raw_similar_shapelets = get_each_sample_distance_shapelet(
+                                generator_shapelet=predicted[_i],
+                                raw_shapelet=x[_i],
+                                topk=1)
+                            _raw_similar_shapelets = torch.unsqueeze(_raw_similar_shapelets, 0)
+                            if raw_similar_shapelets_list is None:
+                                raw_similar_shapelets_list = _raw_similar_shapelets
+                            else:
+                                raw_similar_shapelets_list = torch.cat((raw_similar_shapelets_list, _raw_similar_shapelets),
+                                                                       0)
 
-                    loss_df = df_model(torch.squeeze(predicted, 2), embedding=raw_similar_shapelets_list)
+                            _i_sim_loss = get_similarity_shapelet(generator_shapelet=predicted[_i])
+                            if transformation_similart_loss == None:
+                                transformation_similart_loss = 0.01 * _i_sim_loss
+                            else:
+                                transformation_similart_loss = transformation_similart_loss + 0.01 * _i_sim_loss
 
-                    fcn_cls_emb = fcn_model(torch.squeeze(predicted, 2))
+                        loss_df = df_model(torch.squeeze(predicted, 2), embedding=raw_similar_shapelets_list)
 
-                    text_embedding = mlp_text_head(text_embedding_labels)
-                    text_embd_batch = None
-                    _i = 0
-                    for _y in y:
-                        temp_text_embd = torch.unsqueeze(text_embedding[_y], 0)
-                        if text_embd_batch is None:
-                            text_embd_batch = temp_text_embd
-                        else:
-                            text_embd_batch = torch.cat((text_embd_batch, temp_text_embd), 0)
-                        _i = _i + 1
+                        fcn_cls_emb = fcn_model(torch.squeeze(predicted, 2))
 
-                    batch_sup_contrastive_loss = lan_shapelet_contrastive_loss(
-                        embd_batch=torch.nn.functional.normalize(fcn_cls_emb),
-                        text_embd_batch=torch.nn.functional.normalize(text_embd_batch),
-                        labels=y,
-                        device=device,
-                        temperature=args.temperature,
-                        base_temperature=args.temperature)
+                        text_embedding = mlp_text_head(text_embedding_labels)
+                        text_embd_batch = None
+                        _i = 0
+                        for _y in y:
+                            temp_text_embd = torch.unsqueeze(text_embedding[_y], 0)
+                            if text_embd_batch is None:
+                                text_embd_batch = temp_text_embd
+                            else:
+                                text_embd_batch = torch.cat((text_embd_batch, temp_text_embd), 0)
+                            _i = _i + 1
 
-                    fcn_cls_prd = fcn_classifier(fcn_cls_emb)
-                    step_loss_fcn = loss_fcn(fcn_cls_prd, y)
+                        batch_sup_contrastive_loss = lan_shapelet_contrastive_loss(
+                            embd_batch=torch.nn.functional.normalize(fcn_cls_emb),
+                            text_embd_batch=torch.nn.functional.normalize(text_embd_batch),
+                            labels=y,
+                            device=device,
+                            temperature=args.temperature,
+                            base_temperature=args.temperature)
 
-                    sum_loss = transformation_similart_loss + args.sup_df * loss_df + step_loss_fcn + batch_sup_contrastive_loss * args.sup_con_mu  ##
+                        fcn_cls_prd = fcn_classifier(fcn_cls_emb)
+                        step_loss_fcn = loss_fcn(fcn_cls_prd, y)
 
-                    sum_loss.backward()
-                    optimizer.step()
+                        sum_loss = transformation_similart_loss + args.sup_df * loss_df + step_loss_fcn + batch_sup_contrastive_loss * args.sup_con_mu  ##
+
+                    scaler.scale(sum_loss).backward()
+                    scaler.step(optimizer)
+                    scaler.update()
 
                     epoch_train_loss += sum_loss.item()
             else:
@@ -520,102 +532,104 @@ if __name__ == '__main__':
 
                     optimizer.zero_grad()
 
-                    predicted = conv_model(torch.unsqueeze(x, 2))
+                    with autocast():
 
-                    raw_similar_shapelets_list = None
-                    transformation_similart_loss = None
-                    for _i in range(predicted.shape[0]):
-                        _, _raw_similar_shapelets = get_each_sample_distance_shapelet(
-                            generator_shapelet=predicted[_i],
-                            raw_shapelet=x[_i],
-                            topk=1)
-                        _raw_similar_shapelets = torch.unsqueeze(_raw_similar_shapelets, 0)
-                        if raw_similar_shapelets_list is None:
-                            raw_similar_shapelets_list = _raw_similar_shapelets
-                        else:
-                            raw_similar_shapelets_list = torch.cat((raw_similar_shapelets_list, _raw_similar_shapelets),
-                                                                   0)
+                        predicted = conv_model(torch.unsqueeze(x, 2))
 
-                        _i_sim_loss = get_similarity_shapelet(generator_shapelet=predicted[_i])
-                        if transformation_similart_loss == None:
-                            transformation_similart_loss = _i_sim_loss * 0.01
-                        else:
-                            transformation_similart_loss = transformation_similart_loss + _i_sim_loss * 0.01
-
-                    loss_df = df_model(torch.squeeze(predicted, 2), embedding=raw_similar_shapelets_list)
-
-                    fcn_cls_emb = fcn_model(torch.squeeze(predicted, 2))
-
-                    new_mask_labeled = None
-                    end_all_label = None
-                    if len(y[mask_labeled]) >= 1:
-
-                        fcn_cls_prd = fcn_classifier(fcn_cls_emb)
-
-                        if epoch > args.warmup_epochs:
-
-                            new_mask_labeled, end_all_label = get_pesudo_via_high_confidence_softlabels(y_label=y,
-                                                                                                        pseudo_label_soft=fcn_cls_prd,
-                                                                                                        mask_label=mask_labeled,
-                                                                                                        num_real_class=args.num_classes,
-                                                                                                        device=device,
-                                                                                                        p_cutoff=0.95)
-
-                            step_loss_fcn = loss_fcn(fcn_cls_prd[new_mask_labeled], end_all_label[new_mask_labeled])
-                        else:
-                            step_loss_fcn = loss_fcn(fcn_cls_prd[mask_labeled], y[mask_labeled])
-
-                    else:
-                        step_loss_fcn = 0
-
-                    if len(y[mask_labeled]) >= 1:
-                        if new_mask_labeled is not None:
-                            _mask_labeled = new_mask_labeled
-                            y = end_all_label
-                        else:
-                            _mask_labeled = mask_labeled
-
-                        text_embedding = mlp_text_head(text_embedding_labels)
-                        text_embd_batch = None
-                        _i = 0
-                        for _y in y[_mask_labeled]:
-                            temp_text_embd = torch.unsqueeze(text_embedding[_y], 0)
-                            if text_embd_batch is None:
-                                text_embd_batch = temp_text_embd
+                        raw_similar_shapelets_list = None
+                        transformation_similart_loss = None
+                        for _i in range(predicted.shape[0]):
+                            _, _raw_similar_shapelets = get_each_sample_distance_shapelet(
+                                generator_shapelet=predicted[_i],
+                                raw_shapelet=x[_i],
+                                topk=1)
+                            _raw_similar_shapelets = torch.unsqueeze(_raw_similar_shapelets, 0)
+                            if raw_similar_shapelets_list is None:
+                                raw_similar_shapelets_list = _raw_similar_shapelets
                             else:
-                                text_embd_batch = torch.cat((text_embd_batch, temp_text_embd), 0)
-                            _i = _i + 1
+                                raw_similar_shapelets_list = torch.cat((raw_similar_shapelets_list, _raw_similar_shapelets),
+                                                                       0)
 
-                        batch_sup_contrastive_loss = lan_shapelet_contrastive_loss(
-                            embd_batch=torch.nn.functional.normalize(fcn_cls_emb[_mask_labeled]),
-                            text_embd_batch=torch.nn.functional.normalize(text_embd_batch),
-                            labels=y[_mask_labeled],
-                            device=device,
-                            temperature=args.temperature,
-                            base_temperature=args.temperature)
-                    else:
-                        batch_sup_contrastive_loss = 0
+                            _i_sim_loss = get_similarity_shapelet(generator_shapelet=predicted[_i])
+                            if transformation_similart_loss == None:
+                                transformation_similart_loss = _i_sim_loss * 0.01
+                            else:
+                                transformation_similart_loss = transformation_similart_loss + _i_sim_loss * 0.01
 
-                    step_loss2 = 0.0
-                    if epoch > args.warmup_epochs:
-                        _a, _b, _c = torch.squeeze(predicted[mask_labeled], 2).shape
+                        loss_df = df_model(torch.squeeze(predicted, 2), embedding=raw_similar_shapelets_list)
 
-                        noise = torch.randn(_a, _b, _c).to(device)  # [batch_size, in_channels, length]
-                        df_sample = df_model.sample(noise, num_steps=10,
-                                                    x_raw_s=raw_similar_shapelets_list[mask_labeled],
-                                                    embedding=raw_similar_shapelets_list[
-                                                        mask_labeled])  # Suggested num_steps 5, 10, 20
-                        df_sample = torch.unsqueeze(df_sample, 2)
-                        fcn_cls_emb1 = fcn_model(torch.squeeze(df_sample, 2))
-                        fcn_cls_prd1 = fcn_classifier(fcn_cls_emb1)
-                        step_loss_fcn2 = loss_fcn(fcn_cls_prd1, y[mask_labeled])
-                        step_loss2 = step_loss_fcn2
+                        fcn_cls_emb = fcn_model(torch.squeeze(predicted, 2))
 
-                    sum_loss = transformation_similart_loss + args.sup_df * (
-                        loss_df) + step_loss_fcn + batch_sup_contrastive_loss * args.sup_con_mu + step_loss2  ##
+                        new_mask_labeled = None
+                        end_all_label = None
+                        if len(y[mask_labeled]) >= 1:
 
-                    sum_loss.backward()
-                    optimizer.step()
+                            fcn_cls_prd = fcn_classifier(fcn_cls_emb)
+
+                            if epoch > args.warmup_epochs:
+
+                                new_mask_labeled, end_all_label = get_pesudo_via_high_confidence_softlabels(y_label=y,
+                                                                                                            pseudo_label_soft=fcn_cls_prd,
+                                                                                                            mask_label=mask_labeled,
+                                                                                                            num_real_class=args.num_classes,
+                                                                                                            device=device,
+                                                                                                            p_cutoff=0.99)
+
+                                step_loss_fcn = loss_fcn(fcn_cls_prd[new_mask_labeled], end_all_label[new_mask_labeled])
+                            else:
+                                step_loss_fcn = loss_fcn(fcn_cls_prd[mask_labeled], y[mask_labeled])
+
+                        else:
+                            step_loss_fcn = 0
+
+                        if len(y[mask_labeled]) >= 1:
+                            if new_mask_labeled is not None:
+                                _mask_labeled = new_mask_labeled
+                                y = end_all_label
+                            else:
+                                _mask_labeled = mask_labeled
+
+                            text_embedding = mlp_text_head(text_embedding_labels)
+                            text_embd_batch = None
+                            _i = 0
+                            for _y in y[_mask_labeled]:
+                                temp_text_embd = torch.unsqueeze(text_embedding[_y], 0)
+                                if text_embd_batch is None:
+                                    text_embd_batch = temp_text_embd
+                                else:
+                                    text_embd_batch = torch.cat((text_embd_batch, temp_text_embd), 0)
+                                _i = _i + 1
+
+                            batch_sup_contrastive_loss = lan_shapelet_contrastive_loss(
+                                embd_batch=torch.nn.functional.normalize(fcn_cls_emb[_mask_labeled]),
+                                text_embd_batch=torch.nn.functional.normalize(text_embd_batch),
+                                labels=y[_mask_labeled],
+                                device=device,
+                                temperature=args.temperature,
+                                base_temperature=args.temperature)
+                        else:
+                            batch_sup_contrastive_loss = 0
+
+                        step_loss2 = 0.0
+                        if len(y[mask_labeled]) >= 1:
+                            _a, _b, _c = torch.squeeze(predicted[mask_labeled], 2).shape
+
+                            noise = torch.randn(_a, _b, _c).to(device)  # [batch_size, in_channels, length]
+                            df_sample = df_model.sample(noise, num_steps=10,
+                                                        embedding=raw_similar_shapelets_list[
+                                                            mask_labeled])  # Suggested num_steps 5, 10, 20
+                            df_sample = torch.unsqueeze(df_sample, 2)
+                            fcn_cls_emb1 = fcn_model(torch.squeeze(df_sample, 2))
+                            fcn_cls_prd1 = fcn_classifier(fcn_cls_emb1)
+                            step_loss_fcn2 = loss_fcn(fcn_cls_prd1, y[mask_labeled])
+                            step_loss2 = step_loss_fcn2
+
+                        sum_loss = transformation_similart_loss + args.sup_df * (
+                            loss_df) + step_loss_fcn + batch_sup_contrastive_loss * args.sup_con_mu + step_loss2  ##
+
+                    scaler.scale(sum_loss).backward()
+                    scaler.step(optimizer)
+                    scaler.update()
 
                     epoch_train_loss += sum_loss.item()
 
@@ -634,19 +648,19 @@ if __name__ == '__main__':
                 end_val_epoch = epoch
                 test_accuracy = evaluate_model_acc(test_loader, conv_model, fcn_model, fcn_classifier)
 
-            if (epoch > args.warmup_epochs) and (last_val_accu >= val_accu):
+            if (epoch > args.warmup_epochs * 2) and (last_val_accu >= val_accu):
                 stop_count += 1
             else:
                 stop_count = 0
 
-            if (epoch > args.warmup_epochs) and (end_val_epoch + 80 < epoch):
+            if (epoch > args.warmup_epochs * 2) and (end_val_epoch + 80 < epoch):
                 increase_count += 1
             else:
                 increase_count = 0
 
             last_val_accu = val_accu
 
-            if epoch % 50 == 0:
+            if epoch % 100 == 0:
                 print("epoch : {}, train loss: {}, val_accu: {}, stop_count: {}, test_accuracy: {}".format(epoch,
                                                                                                            epoch_train_loss,
                                                                                                            val_accu,
@@ -658,5 +672,5 @@ if __name__ == '__main__':
 
     test_acc_list = test_accuracies
     train_time_end = train_time
-    print("The average test acc = ", np.mean(test_acc_list), ", training time = ", train_time_end)
+    print("The average test acc = ", np.mean(test_acc_list), ", all fold test acc = ", test_acc_list, ", training time = ", train_time_end)
     print('Done!')

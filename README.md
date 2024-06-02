@@ -30,6 +30,8 @@ of at least 30 samples per class within each dataset. This measure was taken to 
 classification test results. As a result,
 we employed a total of 106 datasets from the initial pool of 128 UCR datasets for our experimental analysis.
 
+Please refer to **page 13** of the [PDF](https://www.cs.ucr.edu/~eamonn/time_series_data_2018/BriefingDocument2018.pdf) document for the password to access the zipped file of the UCR archive.
+
 ## Usage (Our Model)
 
 To train a DiffShape model on a dataset for semi-supervised time series classification, run
@@ -38,10 +40,20 @@ To train a DiffShape model on a dataset for semi-supervised time series classifi
 python diffshape_ssc/main_diffshape.py --dataset [name of the dataset you want to train]  ...
 ```
 
-Also, to train a DiffShape model on a dataset with few labeled samples per class for time series classification, run
+For detailed options and examples, please refer to parser setup in ```diffshape_ssc/main_diffshape.py```
 
-```bash
-python diffshape_ssc/main_diffshape_few.py --dataset [name of the dataset you want to train]  ...
+## Citation
+If you use this code for your research, please cite our paper:
+```
+@inproceedings{liu2024diffusion,
+  title={Diffusion language-shapelets for semi-supervised time-series classification},
+  author={Liu, Zhen and Pei, Wenbin and Lan, Disen and Ma, Qianli},
+  booktitle={Proceedings of the AAAI Conference on Artificial Intelligence},
+  volume={38},
+  number={13},
+  pages={14079--14087},
+  year={2024}
+}
 ```
 
 

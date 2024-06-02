@@ -15,8 +15,11 @@ import torch.nn as nn
 DEFAULT_T5_NAME = 't5-base'
 MODEL_NAME = DEFAULT_T5_NAME
 
-prompt_toolkit_series = ['This time series is ']
-
+prompt_toolkit_series = ['This time series is ', 'This time series can be described as ',
+                         'The key attributes of this time series are ', 'The nature of this time series is depicted by ',
+                         'Here, the time series is defined by ',
+                         'Describing this time series, we find ', 'Examining this time series reveals ',
+                         'The features exhibited in this time series are ']
 prompt_toolkit_end = ['.']
 
 
@@ -86,8 +89,12 @@ def get_ont_text_label(ucr_datasets_dict, dataset_name, num_label, device, promp
         text_label = prompt_toolkit_series[prompt_toolkit_series_i] + text_label + prompt_toolkit_end[0]
 
     # loading model and tokenizer
-    tokenizer = T5Tokenizer.from_pretrained(MODEL_NAME)
-    model = T5Model.from_pretrained(MODEL_NAME)
+    # tokenizer = T5Tokenizer.from_pretrained(MODEL_NAME)
+    # model = T5Model.from_pretrained(MODEL_NAME)
+
+    tokenizer = T5Tokenizer.from_pretrained('/dev_data/lz/t5-base')
+    model = T5Model.from_pretrained('/dev_data/lz/t5-base')
+
     inputs = tokenizer(text_label, return_tensors='pt', padding=True)
 
     output = model.encoder(input_ids=inputs['input_ids'], attention_mask=inputs['attention_mask'], return_dict=True)
@@ -365,24 +372,3 @@ def get_pesudo_via_high_confidence_softlabels(y_label, pseudo_label_soft, mask_l
                 end_mask_labeled[i] = True
 
     return end_mask_labeled, all_end_label
-
-
-def get_few_shot_samples(training_set, y_set, num_shot, num_classes):
-    x_few = []
-    y_few = []
-
-    for i in range(num_classes):
-        x_i_set = training_set[np.where(y_set == i)]
-
-        x_i_mean = np.mean(x_i_set, axis=1)
-        x_i_mean_mean = np.mean(x_i_mean, axis=0)
-        val_x_set = np.abs(x_i_mean - x_i_mean_mean)
-
-        sorted_indices = sorted(enumerate(val_x_set), key=lambda x: x[1], reverse=False)
-        indices = [_i[0] for _i in sorted_indices]
-
-        for j in range(num_shot):
-            x_few.append(x_i_set[indices[j]])
-            y_few.append(i)
-
-    return np.array(x_few), np.array(y_few)
