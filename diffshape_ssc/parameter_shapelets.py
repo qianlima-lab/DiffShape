@@ -1,11 +1,10 @@
 '''
-Like [1], we use a cross-validation grid search method to select k (target_dim, number of shapelets) and
-η (len_shapelet_ratio, the ratio of the time series length).
+Like [1], we use a cross-validation grid search method to select k (target_dim, number of shapelets),
+η (len_shapelet_ratio, the ratio of the time series length), and hard prompt template.
 
 [1] Grabocka, Josif, et al. "Learning time-series shapelets." Proceedings of the 20th ACM SIGKDD international conference
 on Knowledge discovery and data mining. 2014.
 '''
-
 
 ucr_hyp_dict_10 = {'AllGestureWiimoteX': {'target_dim': 5, 'len_shapelet_ratio': 0.8},
                    'AllGestureWiimoteY': {'target_dim': 10, 'len_shapelet_ratio': 0.8},

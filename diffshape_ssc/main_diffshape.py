@@ -15,7 +15,6 @@ from semi_backbone import ProjectionHead
 from parameter_shapelets import *
 from torch.cuda.amp import GradScaler, autocast
 
-
 ucr_datasets_dict = {
     'AllGestureWiimoteX': {'0': 'poteg - pick-up', '1': 'shake - shake', '2': 'desno - one move to the right',
                            '3': 'levo - one move to the left', '4': 'gor - one move to up',
@@ -56,7 +55,8 @@ ucr_datasets_dict = {
     'DistalPhalanxOutlineAgeGroup': {'0': '0-6 years old', '1': '7-12 years old', '2': '13-19 years old'},
     'DistalPhalanxOutlineCorrect': {'0': 'Correct', '1': 'Incorrect'},
     'DistalPhalanxTW': {'0': 'belong to 0-6 years old', '1': 'not belong to 0-6 years old',
-                        '2': 'belong to 7-12 years old', '3': 'not belong to 7-12 years old', '4': 'belong to 13-19 years old', '5': 'not belong to 13-19 years old'},
+                        '2': 'belong to 7-12 years old', '3': 'not belong to 7-12 years old',
+                        '4': 'belong to 13-19 years old', '5': 'not belong to 13-19 years old'},
     'DodgerLoopGame': {'0': 'Sunday', '1': 'Monday', '2': 'Tuesday', '3': 'Wednesday', '4': 'Thursday', '5': 'Friday',
                        '6': 'Saturday'},
     'DodgerLoopWeekend': {'0': 'Sunday', '1': 'Monday', '2': 'Tuesday', '3': 'Wednesday', '4': 'Thursday',
@@ -235,8 +235,7 @@ if __name__ == '__main__':
 
     # Dataset setup
     parser.add_argument('--dataset', type=str, default='Trace', help='')
-    # parser.add_argument('--dataroot', type=str, default='.../UCRArchive_2018', help='path of UCR folder')
-    parser.add_argument('--dataroot', type=str, default='/dev_data/lz/UCRArchive_2018', help='path of UCR folder')
+    parser.add_argument('--dataroot', type=str, default='.../UCRArchive_2018', help='path of UCR folder')
     parser.add_argument('--num_classes', type=int, default=2, help='number of class')
     parser.add_argument('--input_size', type=int, default=2, help='input_size')
 
@@ -477,8 +476,9 @@ if __name__ == '__main__':
                             if raw_similar_shapelets_list is None:
                                 raw_similar_shapelets_list = _raw_similar_shapelets
                             else:
-                                raw_similar_shapelets_list = torch.cat((raw_similar_shapelets_list, _raw_similar_shapelets),
-                                                                       0)
+                                raw_similar_shapelets_list = torch.cat(
+                                    (raw_similar_shapelets_list, _raw_similar_shapelets),
+                                    0)
 
                             _i_sim_loss = get_similarity_shapelet(generator_shapelet=predicted[_i])
                             if transformation_similart_loss == None:
@@ -547,8 +547,9 @@ if __name__ == '__main__':
                             if raw_similar_shapelets_list is None:
                                 raw_similar_shapelets_list = _raw_similar_shapelets
                             else:
-                                raw_similar_shapelets_list = torch.cat((raw_similar_shapelets_list, _raw_similar_shapelets),
-                                                                       0)
+                                raw_similar_shapelets_list = torch.cat(
+                                    (raw_similar_shapelets_list, _raw_similar_shapelets),
+                                    0)
 
                             _i_sim_loss = get_similarity_shapelet(generator_shapelet=predicted[_i])
                             if transformation_similart_loss == None:
@@ -672,5 +673,6 @@ if __name__ == '__main__':
 
     test_acc_list = test_accuracies
     train_time_end = train_time
-    print("The average test acc = ", np.mean(test_acc_list), ", all fold test acc = ", test_acc_list, ", training time = ", train_time_end)
+    print("The average test acc = ", np.mean(test_acc_list), ", all fold test acc = ", test_acc_list,
+          ", training time = ", train_time_end)
     print('Done!')

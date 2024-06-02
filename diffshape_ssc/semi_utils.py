@@ -11,12 +11,12 @@ import torch.utils.data as data
 import random
 import torch.nn as nn
 
-
 DEFAULT_T5_NAME = 't5-base'
 MODEL_NAME = DEFAULT_T5_NAME
 
 prompt_toolkit_series = ['This time series is ', 'This time series can be described as ',
-                         'The key attributes of this time series are ', 'The nature of this time series is depicted by ',
+                         'The key attributes of this time series are ',
+                         'The nature of this time series is depicted by ',
                          'Here, the time series is defined by ',
                          'Describing this time series, we find ', 'Examining this time series reveals ',
                          'The features exhibited in this time series are ']
@@ -39,7 +39,7 @@ def build_loss(args):
 
 
 def lan_shapelet_contrastive_loss(embd_batch, text_embd_batch, labels, device,
-                              temperature=0.07, base_temperature=0.07):
+                                  temperature=0.07, base_temperature=0.07):
     anchor_dot_contrast = torch.div(
         torch.matmul(embd_batch, text_embd_batch.T),
         temperature)
@@ -89,12 +89,8 @@ def get_ont_text_label(ucr_datasets_dict, dataset_name, num_label, device, promp
         text_label = prompt_toolkit_series[prompt_toolkit_series_i] + text_label + prompt_toolkit_end[0]
 
     # loading model and tokenizer
-    # tokenizer = T5Tokenizer.from_pretrained(MODEL_NAME)
-    # model = T5Model.from_pretrained(MODEL_NAME)
-
-    tokenizer = T5Tokenizer.from_pretrained('/dev_data/lz/t5-base')
-    model = T5Model.from_pretrained('/dev_data/lz/t5-base')
-
+    tokenizer = T5Tokenizer.from_pretrained(MODEL_NAME)
+    model = T5Model.from_pretrained(MODEL_NAME)
     inputs = tokenizer(text_label, return_tensors='pt', padding=True)
 
     output = model.encoder(input_ids=inputs['input_ids'], attention_mask=inputs['attention_mask'], return_dict=True)
@@ -260,7 +256,7 @@ def evaluate_model_acc(val_loader, model, fcn_model, fcn_classifier):
     num_val_samples = 0
     for data, target in val_loader:
         with torch.no_grad():
-            predicted = model(torch.unsqueeze(data, 2))   ## torch.unsqueeze(x, 2)
+            predicted = model(torch.unsqueeze(data, 2))  ## torch.unsqueeze(x, 2)
 
             fcn_cls_emb = fcn_model(torch.squeeze(predicted, 2))
             val_pred = fcn_classifier(fcn_cls_emb)
@@ -276,7 +272,6 @@ def evaluate_model_acc(val_loader, model, fcn_model, fcn_classifier):
 
 
 def evaluate(val_loader, model, classifier, loss):
-
     target_true = []
     target_pred = []
 
@@ -343,7 +338,8 @@ def sup_contrastive_loss(embd_batch, labels, device,
     return loss
 
 
-def get_pesudo_via_high_confidence_softlabels(y_label, pseudo_label_soft, mask_label, num_real_class, device, p_cutoff=0.95):
+def get_pesudo_via_high_confidence_softlabels(y_label, pseudo_label_soft, mask_label, num_real_class, device,
+                                              p_cutoff=0.95):
     all_end_label = torch.argmax(pseudo_label_soft, 1)
     pseudo_label_hard = torch.argmax(pseudo_label_soft, 1)
 
@@ -352,7 +348,7 @@ def get_pesudo_via_high_confidence_softlabels(y_label, pseudo_label_soft, mask_l
         class_counter[i] = 0
 
     for i in range(len(mask_label)):
-        if mask_label[i] is False: ## unlabeled data
+        if mask_label[i] is False:  ## unlabeled data
             class_counter[pseudo_label_hard[i]] += 1
         else:
             all_end_label[i] = y_label[i]
